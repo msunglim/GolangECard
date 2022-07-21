@@ -10,7 +10,7 @@ body {
     background: gray;
 }
 #log {
-    background: white;
+    background: rgb(255, 26, 26);
     margin: 0;
     padding: 0.5em 0.5em 0.5em 0.5em;
     position: absolute;

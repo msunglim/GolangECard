@@ -5,7 +5,7 @@
 package main
 
 import (
-	"bytes"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -41,14 +41,17 @@ var upgrader = websocket.Upgrader{
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
 	hub *Hub
-
 	// The websocket connection.
 	conn *websocket.Conn
-
 	// Buffered channel of outbound messages.
 	send1 chan Info
 	send2 chan Info
 	id    []byte
+}
+
+type socketInfo struct {
+	Type string
+	Key  string
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -66,23 +69,35 @@ func (c *Client) readPump() {
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
-		_, message, err := c.conn.ReadMessage() //내가 주는입장.. 나의 정보를 모두에게
+		message := socketInfo{}
+		err := c.conn.ReadJSON(&message) //내가 주는입장.. 나의 정보를 모두에게
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
 			}
 			break
 		}
-		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
+
+		// message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 		send1Str := "Join"
-		send1StrByte := []byte(send1Str)
-		sendObj := Info{
-			data: message,
-			id:   c.id,
-		}
-		if bytes.Compare(message, send1StrByte) == 0 {
+
+		// fmt.Println("mesg", message, "equal?", bytes.Compare(message, send1StrByte) == 0)
+		if send1Str == message.Type {
+			sendObj := Info{
+				data: []byte(message.Type),
+				id:   c.id,
+			}
+			fmt.Println("key type", message.Type)
 			c.hub.broadcast1 <- sendObj
 		} else {
+			keyNumber := message.Key[len(message.Key)-1 : len(message.Key)]
+			keyStr := string(keyNumber)
+			sendObj := Info{
+				data: []byte(message.Type),
+				id:   c.id,
+				key:  []byte(keyStr),
+			}
+			fmt.Println("key type", message.Type, "key", keyStr)
 			c.hub.broadcast2 <- sendObj
 		}
 
@@ -144,14 +159,14 @@ func (c *Client) writePump() {
 				return
 			}
 
-			message := append(info.data, info.id...)
+			message := append(info.data, info.key...)
 			w.Write(message)
 
 			n := len(c.send2)
 			for i := 0; i < n; i++ {
 				w.Write(newline)
 				iinfo := <-c.send2
-				message := append(iinfo.data, iinfo.id...)
+				message := append(iinfo.data, iinfo.key...)
 				w.Write(message)
 			}
 
