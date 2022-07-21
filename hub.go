@@ -7,6 +7,7 @@ package main
 type Info struct {
 	data []byte
 	id   []byte //보통 보낸사람의 아이디이다..
+	key  []byte //html로 부터 받은 정보.
 }
 
 // Hub maintains the set of active clients and broadcasts messages to the
