@@ -5,45 +5,36 @@
 <script type="text/javascript">
 window.onload = function () {
     var conn;
-    var msg = document.getElementById("msg");
-    var log = document.getElementById("log");
-
-    function appendLog(item) {
-        var doScroll = log.scrollTop > log.scrollHeight - log.clientHeight - 1;
-        log.appendChild(item);
-        if (doScroll) {
-            log.scrollTop = log.scrollHeight - log.clientHeight;
-        }
-    }
-
-    // document.getElementById("form").onsubmit = function () {
-    //     if (!conn) {
-    //         return false;
-    //     }
-    //     if (!msg.value) {
-    //         return false;
-    //     }
-    //     conn.send(msg.value);
-    //     msg.value = "";
-    //     return false;
-    // };
-  
     for (var i =0 ; i < 5; i++){
         document.getElementsByClassName('mycard')[i].onclick = function(){
-        console.log(this.id+"ha?ha")
-                
-        conn.send("");
+        var mcc = document.getElementById("myChosenCard");     
+        mcc.appendChild(this)   
+        conn.send("CardSelect");
         } 
     }
     for (var i =0 ; i < 5; i++){
         document.getElementsByClassName('adversarycard')[i].onclick = function(){
-        console.log(this.id+"notrh")
         conn.send("");
         } 
     }
+    document.getElementById('Join').onclick = function(){
+        console.log(this.id+" joined ")
+        conn.send("Join");
+        this.remove();
+        } 
 
-    function a(b){
-        document.getElementById("zzz").innerText = b
+    function setNames(k){
+        n1 = (k%2==0)? "카이지": "토네가와"
+        n2 = (k%2==0)? "토네가와" : "카이지"
+        document.getElementById("myName").innerText = n1
+        document.getElementById("adversaryName").innerText = n2
+        if(document.getElementById('Join')!=null){
+            document.getElementById('Join').remove()
+        }
+    }
+    function moveCard(k){
+        var acc = document.getElementById("adversaryChosenCard");     
+        acc.appendChild(document.getElementsByClassName('adversarycard')[k])   
     }
     if (window["WebSocket"]) {
         conn = new WebSocket("ws://" + document.location.host + "/ws");
@@ -54,19 +45,21 @@ window.onload = function () {
             return false;
         };
         conn.onmessage = function (evt) {
-            switch (evt.data){
-                case '1': 
-                    a(10)
+            var str = String(evt.data)
+            var strLength = String(evt.data).length
+            var eventType =str.substring(0, strLength - 1)
+         
+            var key = str.substring(strLength-1, strLength)
+            console.log(str, "t:", eventType,"k", key)
+            // console.log(str,"et",  str.substring(0, str.legnth - 1), "key ", str.substring(str.legnth-1, str.legnth),'len', str.legnth)
+            switch (eventType){
+                case 'Join':
+                    setNames(key)
                     break;
-             
-                default:a(50); console.log("aaa...", evt.data)
+                case 'CardSelect':
+                    moveCard(key)
+                    break;
             }
-            // var messages = evt.data.split('\n');
-            // for (var i = 0; i < messages.length; i++) {
-            //     var item = document.createElement("div");
-            //     item.innerText = messages[i];
-            //     appendLog(item);
-            // }
         };
     } else {
         var item = document.createElement("div");
@@ -81,20 +74,24 @@ window.onload = function () {
 </head>
 <body>
     <div id="adversarycards">
+        <div id="adversaryChosenCard"> </div>
+        <button class="adversarycard" id="ac0"> 카드 0</button>
         <button class="adversarycard" id="ac1"> 카드 1</button>
         <button class="adversarycard" id="ac2"> 카드 2</button>
         <button class="adversarycard" id="ac3"> 카드 3</button>
         <button class="adversarycard" id="ac4"> 카드 4</button>
-        <button class="adversarycard" id="ac5"> 카드 5</button>
     </div>
     
-    <span id="zzz">우영우</span>
+    <span id="adversaryName">Player 2 Name</span>
+    <span id="myName">Player 1 Name</span>
+    <button id="Join">Join</button>
     <div id="mycards"">
+        <div id="myChosenCard"> </div>
+        <button class="mycard" id="mc0"> 카드 0</button>
         <button class="mycard" id="mc1"> 카드 1</button>
         <button class="mycard" id="mc2"> 카드 2</button>
         <button class="mycard" id="mc3"> 카드 3</button>
         <button class="mycard" id="mc4"> 카드 4</button>
-        <button class="mycard" id="mc5"> 카드 5</button>
     </div>
 <div id="log"></div> 
 
@@ -107,6 +104,34 @@ window.onload = function () {
 </form>  -->
 
 <style type="text/css">
+    #adversaryName{
+        position: absolute;
+        right: 10%;
+        top: 10%;
+    }
+    #myName{
+        position: absolute;
+        right: 10%;
+        bottom: 10%;
+    }
+    
+    #Join{
+        position: absolute;
+        left: 50%;
+        top: 30%;
+    }
+    #adversaryChosenCard{
+        position:relative;
+        top: 80px;
+        width: max-content;
+        left: 50%;
+    }
+    #myChosenCard{
+        position:relative;
+        top: -40px;
+        width: max-content;
+        left: 50%;
+    }
     html {
     overflow: hidden;
 }
