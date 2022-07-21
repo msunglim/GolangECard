@@ -4,6 +4,11 @@
 
 package main
 
+type Info struct {
+	data []byte
+	id   []byte //보통 보낸사람의 아이디이다..
+}
+
 // Hub maintains the set of active clients and broadcasts messages to the
 // clients.
 type Hub struct {
@@ -11,8 +16,8 @@ type Hub struct {
 	clients map[*Client]bool
 
 	// Inbound messages from the clients.
-	broadcast chan []byte
-
+	broadcast1 chan Info
+	broadcast2 chan Info
 	// Register requests from the clients.
 	register chan *Client
 
@@ -22,7 +27,8 @@ type Hub struct {
 
 func newHub() *Hub {
 	return &Hub{
-		broadcast:  make(chan []byte),
+		broadcast1: make(chan Info),
+		broadcast2: make(chan Info),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		clients:    make(map[*Client]bool),
@@ -37,17 +43,35 @@ func (h *Hub) run() {
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
-				close(client.send)
+				close(client.send1)
+				close(client.send2)
 			}
-		case message := <-h.broadcast:
+		case info := <-h.broadcast1:
 			for client := range h.clients {
 				select {
-				case client.send <- message:
+				case client.send1 <- info:
 				default:
-					close(client.send)
+					close(client.send1)
 					delete(h.clients, client)
 				}
 			}
+		case info := <-h.broadcast2:
+			strId := string(info.id[:])
+			var senderId string = string(strId)
+
+			for client := range h.clients {
+				cid := string(client.id)
+				if cid != senderId {
+					select {
+					case client.send2 <- info:
+					default:
+						close(client.send2)
+						delete(h.clients, client)
+					}
+
+				}
+			}
 		}
+
 	}
 }

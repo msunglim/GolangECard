@@ -7,7 +7,6 @@ package main
 import (
 	"bytes"
 	"log"
-	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
@@ -47,8 +46,9 @@ type Client struct {
 	conn *websocket.Conn
 
 	// Buffered channel of outbound messages.
-	send chan []byte
-	id   []byte
+	send1 chan Info
+	send2 chan Info
+	id    []byte
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -66,7 +66,7 @@ func (c *Client) readPump() {
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
-		_, message, err := c.conn.ReadMessage()
+		_, message, err := c.conn.ReadMessage() //내가 주는입장.. 나의 정보를 모두에게
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
@@ -74,8 +74,18 @@ func (c *Client) readPump() {
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		idmsg := append(c.id, message...)
-		c.hub.broadcast <- idmsg
+		send1Str := "Join"
+		send1StrByte := []byte(send1Str)
+		sendObj := Info{
+			data: message,
+			id:   c.id,
+		}
+		if bytes.Compare(message, send1StrByte) == 0 {
+			c.hub.broadcast1 <- sendObj
+		} else {
+			c.hub.broadcast2 <- sendObj
+		}
+
 	}
 }
 
@@ -92,7 +102,7 @@ func (c *Client) writePump() {
 	}()
 	for {
 		select {
-		case message, ok := <-c.send:
+		case info, ok := <-c.send1: //Join과 같이 나의 행동이 서버에서 나의 데이터를 받아서 내 html에 영향을 미칠때. 행위자의 정보가 행위자의 html에 적용된다..?
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				// The hub closed the channel.
@@ -105,16 +115,44 @@ func (c *Client) writePump() {
 				return
 			}
 
-			str := c.id
-			data := []byte(str)
-			log.Println(message) //useless .
-			w.Write(data)
+			id := []byte(c.id)
+			message := append(info.data, id...)
+			w.Write(message)
 
-			// // Add queued chat messages to the current websocket message.
-			n := len(c.send)
+			n := len(c.send1)
 			for i := 0; i < n; i++ {
 				w.Write(newline)
-				w.Write(<-c.send)
+				iinfo := <-c.send1
+				id := []byte(c.id)
+				message := append(iinfo.data, id...)
+				w.Write(message)
+			}
+
+			if err := w.Close(); err != nil {
+				return
+			}
+		case info, ok := <-c.send2: //카드 주기와 같이 나의 행동이 상대에게만 영향을 미칠때. 행위자의 정보가 피행위자의 html에 적용된다.
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if !ok {
+				// The hub closed the channel.
+				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+
+			w, err := c.conn.NextWriter(websocket.TextMessage)
+			if err != nil {
+				return
+			}
+
+			message := append(info.data, info.id...)
+			w.Write(message)
+
+			n := len(c.send2)
+			for i := 0; i < n; i++ {
+				w.Write(newline)
+				iinfo := <-c.send2
+				message := append(iinfo.data, iinfo.id...)
+				w.Write(message)
 			}
 
 			if err := w.Close(); err != nil {
@@ -129,6 +167,8 @@ func (c *Client) writePump() {
 	}
 }
 
+var count int = 0
+
 // serveWs handles websocket requests from the peer.
 func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -137,8 +177,9 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//id random
-	idr := []byte(strconv.Itoa(rand.Intn(10)))
-	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), id: idr}
+	idc := []byte(strconv.Itoa(count))
+	client := &Client{hub: hub, conn: conn, send1: make(chan Info), send2: make(chan Info), id: idc}
+	count++
 	client.hub.register <- client
 
 	// Allow collection of memory referenced by the caller by doing all work in
