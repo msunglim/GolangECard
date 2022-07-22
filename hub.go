@@ -9,6 +9,13 @@ type Info struct {
 	id   []byte //보통 보낸사람의 아이디이다..
 	key  []byte //html로 부터 받은 정보.
 }
+type Log struct {
+	data   []byte
+	winner *Client
+	result []byte
+}
+
+var history []Log
 
 // Hub maintains the set of active clients and broadcasts messages to the
 // clients.
@@ -21,18 +28,25 @@ type Hub struct {
 	broadcast2 chan Info
 	// Register requests from the clients.
 	register chan *Client
-
 	// Unregister requests from clients.
 	unregister chan *Client
+	log        chan Log
 }
 
 func newHub() *Hub {
+	// var log [12]int = [12]int{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}
+	// size := 0
+	// Log := Log{
+	// 	log:  log,
+	// 	size: size,
+	// }
 	return &Hub{
 		broadcast1: make(chan Info),
 		broadcast2: make(chan Info),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		clients:    make(map[*Client]bool),
+		log:        make(chan Log),
 	}
 }
 
@@ -69,10 +83,32 @@ func (h *Hub) run() {
 						close(client.send2)
 						delete(h.clients, client)
 					}
-
+				}
+			}
+		case matchLog := <-h.log:
+			history = append(history, matchLog)
+			var info Info
+			if matchLog.winner != nil {
+				info = Info{
+					data: matchLog.data,
+					id:   matchLog.winner.id,
+					key:  matchLog.winner.id,
+				}
+			} else {
+				info = Info{
+					data: matchLog.data,
+					id:   []byte{},
+					key:  []byte("-1"),
+				}
+			}
+			for client := range h.clients {
+				select {
+				case client.send2 <- info:
+				default:
+					close(client.send2)
+					delete(h.clients, client)
 				}
 			}
 		}
-
 	}
 }
