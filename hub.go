@@ -4,6 +4,8 @@
 
 package main
 
+import "fmt"
+
 type Info struct {
 	data []byte
 	id   []byte //보통 보낸사람의 아이디이다..
@@ -34,12 +36,7 @@ type Hub struct {
 }
 
 func newHub() *Hub {
-	// var log [12]int = [12]int{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}
-	// size := 0
-	// Log := Log{
-	// 	log:  log,
-	// 	size: size,
-	// }
+
 	return &Hub{
 		broadcast1: make(chan Info),
 		broadcast2: make(chan Info),
@@ -104,6 +101,7 @@ func (h *Hub) run() {
 			for client := range h.clients {
 				select {
 				case client.send2 <- info:
+					fmt.Println("added to ", client.id)
 				default:
 					close(client.send2)
 					delete(h.clients, client)

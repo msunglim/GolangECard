@@ -15,7 +15,7 @@ import (
 
 const (
 	// Time allowed to write a message to the peer.
-	writeWait = 10 * time.Second
+	writeWait = 20 * time.Second
 
 	// Time allowed to read the next pong message from the peer.
 	pongWait = 60 * time.Second
@@ -24,7 +24,7 @@ const (
 	pingPeriod = (pongWait * 9) / 10
 
 	// Maximum message size allowed from peer.
-	maxMessageSize = 512
+	maxMessageSize = 4096
 )
 
 var (
@@ -64,6 +64,7 @@ func (c *Client) readPump() {
 		c.conn.Close()
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
+
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
@@ -71,7 +72,7 @@ func (c *Client) readPump() {
 		err := c.conn.ReadJSON(&message) //내가 주는입장.. 나의 정보를 모두에게
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
+				log.Printf("Error!!: %v", err)
 			}
 			break
 		}
@@ -163,7 +164,8 @@ func (c *Client) writePump() {
 			if err := w.Close(); err != nil {
 				return
 			}
-		case info, ok := <-c.send2: //카드 주기와 같이 나의 행동이 상대에게만 영향을 미칠때. 행위자의 정보가 피행위자의 html에 적용된다.
+		case info, ok := <-c.send2: //카드선택: 카드 주기와 같이 나의 행동이 상대에게만 영향을 미칠때. 행위자의 정보가 피행위자의 html에 적용된다.
+			//싸움: 모두에게 싸움의 정보를 주기위해..
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				// The hub closed the channel.
