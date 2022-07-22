@@ -7,26 +7,12 @@ window.onload = function () {
     var conn;
     var mcc = document.getElementById("myChosenCard");  
     var acc = document.getElementById("adversaryChosenCard");  
-    for (var i =0 ; i < 5; i++){
-        document.getElementsByClassName('mycard')[i].onclick = function(){
-        mcc.appendChild(this)   
-        //conn.send("CardSelect"+copyI);
-        conn.send(JSON.stringify({ Type: "CardSelect", Key:this.id}));
-        } 
-    }
-    // for (var i =0 ; i < 5; i++){
-    //     document.getElementsByClassName('adversarycard')[i].onclick = function(){
-    //     conn.send("");
-    //     } 
-    // }
+
     document.getElementById('Join').onclick = function(){
         //conn.send("Join");
         conn.send(JSON.stringify({ Type: "Join", Key:""}));
         this.remove();
-
-  
     } 
-
     function setNames(k){
         n1 = (k%2==0)? "카이지": "토네가와"
         n2 = (k%2==0)? "토네가와" : "카이지"
@@ -44,14 +30,49 @@ window.onload = function () {
             }else if(i==r && document.getElementById("myName").innerText=="토네가와"){
                 document.getElementsByClassName('mycard')[i].innerText = "왕"
             }else {
-                console.log(document.getElementById("myName").innerText)
                 document.getElementsByClassName('mycard')[i].innerText = "시민"
             }
         }
     }
+
+    for (var i =0 ; i < 5; i++){
+        document.getElementsByClassName('mycard')[i].onclick = function(){
+        if(mcc.childElementCount!=1){
+            document.getElementById(this.id).classList.add('mycard_back');
+            mcc.appendChild(this)   
+            conn.send(JSON.stringify({ Type: "CardSelect", Key:this.id}));
+        }else{
+            document.getElementById(this.id).classList.remove('mycard_back');
+            switch (this.innerText){
+                case "왕": 
+                    conn.send(JSON.stringify({ Type: "CardSelect", Key:"2"}));
+                    break;
+                case "시민": 
+                    conn.send(JSON.stringify({ Type: "CardSelect", Key:"1"}));    
+                    break;
+                case "노예":
+                    conn.send(JSON.stringify({ Type: "CardSelect", Key:"0"}));      
+                    break;
+            }
+          }
+        } 
+    }
     function moveCard(k){
-        acc.appendChild(document.getElementsByClassName('adversarycard')[k])   
-    
+        if(acc.childElementCount!=1){
+            document.getElementsByClassName('adversarycard_back')[k].classList.add('adversarycard_set')
+            acc.appendChild(document.getElementsByClassName('adversarycard_back')[k])   
+        }else{
+            document.getElementsByClassName('adversarycard_set')[0].classList.remove('adversarycard_back')
+            document.getElementsByClassName('adversarycard_set')[0].classList.add('adversarycard')
+            var text = ""
+            switch (k){
+                case "2": text = "왕"; break;
+                case "1": text = "시민"; break;
+                case "0": text = "노예"; break;
+            }
+            document.getElementsByClassName('adversarycard_set')[0].innerHTML = text
+            document.getElementsByClassName('adversarycard_set')[0].classList.remove('adversarycard_set')
+        }
     }
     if (window["WebSocket"]) {
         conn = new WebSocket("ws://" + document.location.host + "/ws");
@@ -67,13 +88,11 @@ window.onload = function () {
             var eventType =str.substring(0, strLength - 1)
          
             var key = str.substring(strLength-1, strLength)
-            // console.log(str,"et",  str.substring(0, str.legnth - 1), "key ", str.substring(str.legnth-1, str.legnth),'len', str.legnth)
             switch (eventType){
                 case 'Join':
                     setNames(key)
                     break;
                 case 'CardSelect':
-                    console.log("key", key)
                     moveCard(key)
                     break;
             }
@@ -92,11 +111,11 @@ window.onload = function () {
 <body>
     <div id="adversarycards">
         <div id="adversaryChosenCard"> </div>
-        <button class="adversarycard" id="ac0"> 카드 0</button>
-        <button class="adversarycard" id="ac1"> 카드 1</button>
-        <button class="adversarycard" id="ac2"> 카드 2</button>
-        <button class="adversarycard" id="ac3"> 카드 3</button>
-        <button class="adversarycard" id="ac4"> 카드 4</button>
+        <button class="adversarycard_back" id="ac0"> 카드 0</button>
+        <button class="adversarycard_back" id="ac1"> 카드 1</button>
+        <button class="adversarycard_back" id="ac2"> 카드 2</button>
+        <button class="adversarycard_back" id="ac3"> 카드 3</button>
+        <button class="adversarycard_back" id="ac4"> 카드 4</button>
     </div>
     
     <span id="adversaryName">Player 2 Name</span>
@@ -134,7 +153,7 @@ window.onload = function () {
     }
     #adversaryChosenCard{
         position:relative;
-        top: 80px;
+        top: 180px;
         width: max-content;
         left: 50%;
     }
@@ -186,7 +205,26 @@ body {
     top: 1em;
     width: -webkit-fill-available;
     text-align: center;
-}*/
+}
+.mycard{
+    width: 50px;
+    height: 70px;
+}
+.adversarycard{
+    
+    width: 50px;
+    height: 70px;
+}
+.mycard_back{
+    background: black;
+    width: 50px;
+    height: 70px;
+}
+.adversarycard_back{
+    background: black;
+    width: 50px;
+    height: 70px;
+}
 </style>
 </body>
 </html>

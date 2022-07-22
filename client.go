@@ -64,7 +64,6 @@ func (c *Client) readPump() {
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()
-
 	c.conn.SetReadLimit(maxMessageSize)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
@@ -78,18 +77,16 @@ func (c *Client) readPump() {
 			break
 		}
 
-		// message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		send1Str := "Join"
-
-		// fmt.Println("mesg", message, "equal?", bytes.Compare(message, send1StrByte) == 0)
-		if send1Str == message.Type {
+		switch message.Type {
+		case "Join":
 			sendObj := Info{
 				data: []byte(message.Type),
 				id:   c.id,
 			}
 			fmt.Println("key type", message.Type)
 			c.hub.broadcast1 <- sendObj
-		} else {
+			break
+		case "CardSelect":
 			keyNumber := message.Key[len(message.Key)-1 : len(message.Key)]
 			keyStr := string(keyNumber)
 			sendObj := Info{
@@ -99,6 +96,7 @@ func (c *Client) readPump() {
 			}
 			fmt.Println("key type", message.Type, "key", keyStr)
 			c.hub.broadcast2 <- sendObj
+			break
 		}
 
 	}
