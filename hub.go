@@ -47,7 +47,7 @@ func (h *Hub) run() {
 				close(client.send1)
 				close(client.send2)
 			}
-		case info := <-h.broadcast1:
+		case info := <-h.broadcast1: //모두를 업데이트하지만, 자기 사정에 맞게.
 			for client := range h.clients {
 				select {
 				case client.send1 <- info:
@@ -56,7 +56,7 @@ func (h *Hub) run() {
 					delete(h.clients, client)
 				}
 			}
-		case info := <-h.broadcast2:
+		case info := <-h.broadcast2: //발신자를 제외한 나머지 클라이언트 업데이트
 			strId := string(info.id[:])
 			var senderId string = string(strId)
 
