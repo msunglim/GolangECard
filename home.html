@@ -15,15 +15,7 @@ window.onload = function () {
         conn.send(JSON.stringify({ Type: "Join", Key:""}));
         this.remove();
     } 
-    function setNames(k){
-        clientID = k%2 
-        n1 = (k%2==0)? "카이지": "토네가와"
-        n2 = (k%2==0)? "토네가와" : "카이지"
-        document.getElementById("myName").innerText = n1
-        document.getElementById("adversaryName").innerText = n2
-        if(document.getElementById('Join')!=null){
-            document.getElementById('Join').remove()
-        }
+    function shuffleHand(){
         //아랫코드는 패를 정해주는코드임. 주의할점은 상대플레이어없이 대기실에 대기햇던 카드는 상대방이 참가한 순간 위치가 달라짐. 원래 게임시작은 같이 하는거니까.
         let r = Math.floor(Math.random() * (5))
         for(var i =0 ; i < 5; i++){
@@ -34,6 +26,71 @@ window.onload = function () {
             }else {
                 document.getElementsByClassName('mycard')[i].innerText = "시민"
             }
+        }
+    }
+    //receive 5 cards including four citizens card with a slave or king card.
+    function getInitialHand(){
+        while(document.getElementsByClassName("mycard").length != 0){
+            document.getElementsByClassName("mycard")[0].remove()
+        }
+        while(document.getElementsByClassName("adversarycard_back").length != 0){
+            document.getElementsByClassName("adversarycard_back")[0].remove()
+        }
+        for (var i = 0; i < 5; i++){
+            var card = document.createElement("button")
+            myHand.appendChild(card)
+            card.classList.add("mycard")
+            card.id = "mc"+i
+            card.disabled = true
+            card.innerText = "카드" + i
+
+            var card2 = document.createElement("button")
+            advHand.appendChild(card2)
+            card2.classList.add("adversarycard_back")
+            card2.id = "ac"+i
+            card2.disabled = true
+            card2.innerText = "카드" + i
+        }
+        for (var i =0 ; i < 5; i++){
+        document.getElementsByClassName('mycard')[i].onclick = function(){
+        if(mcc.childElementCount!=1){ //세트
+            for(var j = 1 ; j < myHand.childElementCount ; j++){
+                if(myHand.children[j].id != this.id){
+                    myHand.children[j].disabled =true
+                }
+            }
+            document.getElementById(this.id).classList.add('mycard_back');
+            if(acc.childElementCount!=1){
+                document.getElementById(this.id).disabled = true
+            }
+            mcc.appendChild(this)   
+            conn.send(JSON.stringify({ Type: "CardSelect", Key:this.id})); //솔직히 키가 그렇게 중요하지않다..
+            
+        }else{ //오픈
+            document.getElementById(this.id).disabled = true
+            document.getElementById(this.id).classList.remove('mycard_back');
+            myCardKey= getCardKey(this.innerText)
+            conn.send(JSON.stringify({ Type: "CardSelect", Key:""+myCardKey}));
+            //만약 상대진영의 카드가 오픈상태일때 승부를 낸다.
+            if(acc.childElementCount==1 && acc.children[0].classList[0]=='adversarycard'){
+                
+                fight()
+              }
+             }
+          } 
+        }
+        shuffleHand()
+    }
+
+    //executed when joined.
+    function setNames(k){
+        clientID = k%2 
+        n1 = (k%2==0)? "카이지": "토네가와"
+        n2 = (k%2==0)? "토네가와" : "카이지"
+        document.getElementById("myName").innerText = n1
+        document.getElementById("adversaryName").innerText = n2
+        if(document.getElementById('Join')!=null){
+            document.getElementById('Join').remove()
         }
     }
         //카드의 종류에 맞게 숫자 값을 돌려준다.
@@ -53,39 +110,22 @@ window.onload = function () {
         return cardKey
     }
     var myCardKey;
-    for (var i =0 ; i < 5; i++){
-        document.getElementsByClassName('mycard')[i].onclick = function(){
-        if(mcc.childElementCount!=1){ //세트
-            for(var j = 1 ; j < myHand.childElementCount ; j++){
-                if(myHand.children[j].id != this.id){
-                    myHand.children[j].disabled =true
-                }
-            }
-            document.getElementById(this.id).classList.add('mycard_back');
-            mcc.appendChild(this)   
-            conn.send(JSON.stringify({ Type: "CardSelect", Key:this.id})); //솔직히 키가 그렇게 중요하지않다..
-            
-        }else{ //오픈
-            document.getElementById(this.id).disabled = true
-            document.getElementById(this.id).classList.remove('mycard_back');
-            myCardKey= getCardKey(this.innerText)
-            conn.send(JSON.stringify({ Type: "CardSelect", Key:""+myCardKey}));
-            //만약 상대진영의 카드가 오픈상태일때 승부를 낸다.
-            if(acc.childElementCount==1 && acc.children[0].classList[0]=='adversarycard'){
-                fight()
-            }
-          }
-        } 
-    }
-    function enableCards(){
-        for(var j = 1 ; j < myHand.childElementCount; j++){
-                myHand.children[j].disabled =false
+
+    //join이나 fight이 끝나고 패를 클릭가능캐함..
+    function enableCards(key){
+        if(key != -1){ //무승부가 아니고서야 서로 노예 또는 왕을 썼다. 그렇다면 패를 초기화한다.
+            getInitialHand()
         }
+        for(var j = 1 ; j < myHand.childElementCount; j++){
+            myHand.children[j].disabled =false
+        }
+      
     }
     function fight(){
-        var advCardKey = getCardKey(acc.children[0].innerText);           
+        setTimeout(() => {//이걸하는 이유는 대전결과를 어느정도 육안으로 볼 수 잇게 하기와 데이터속도조절에 있음.
+          
+            var advCardKey = getCardKey(acc.children[0].innerText); 
             if(myCardKey == advCardKey){ //시민 vs 시민 = 무승부
-                console.log("무승부")
                 if(clientID %2 ==0 ){
                     conn.send(JSON.stringify({ Type: "Fight", Key:"-1"}));
                 }
@@ -100,37 +140,42 @@ window.onload = function () {
                 console.log("승")
                 conn.send(JSON.stringify({ Type: "Fight", Key:""+clientID}));
             }
-          
-            mcc.removeChild(mcc.children[0])
-            acc.removeChild(acc.children[0])
+            mcc.removeChild(mcc.firstChild)
+            acc.removeChild(acc.firstChild)
+        }, 2000);
+        
     }
-    function moveCard(k){
-        if(acc.childElementCount!=1){
-            document.getElementsByClassName('adversarycard_back')[0].classList.add('adversarycard_set')
-            acc.appendChild(document.getElementsByClassName('adversarycard_back')[0])   
-        }else{
-            document.getElementsByClassName('adversarycard_set')[0].classList.remove('adversarycard_back')
-            document.getElementsByClassName('adversarycard_set')[0].classList.add('adversarycard')
-            var text = ""
-            switch (k){
-                case "2": text = "왕"; break;
-                case "1": text = "시민"; break;
-                case "0": text = "노예"; break;
+    function moveCard(k){ //수틀리면 싸움ㄷㄷ
+            if(mcc.childElementCount==1){
+                mcc.children[0].disabled = false
             }
-            console.log("text open", text,"k", k)
-            document.getElementsByClassName('adversarycard_set')[0].innerHTML = text
-            document.getElementsByClassName('adversarycard_set')[0].classList.remove('adversarycard_set')
-            if(acc.childElementCount==1 && acc.children[0].classList[0]=='adversarycard' && mcc.children[0].classList.length==1){
-                fight()
+            if(acc.childElementCount!=1){ //카드를 세트함
+                document.getElementsByClassName('adversarycard_back')[0].classList.add('adversarycard_set')
+                acc.appendChild(document.getElementsByClassName('adversarycard_back')[0])   
+            }else{ //세트된 카드를 오픈함
+                document.getElementsByClassName('adversarycard_set')[0].classList.remove('adversarycard_back')
+                document.getElementsByClassName('adversarycard_set')[0].classList.add('adversarycard')
+                var text = ""
+                switch (k){
+                    case "2": text = "왕"; break;
+                    case "1": text = "시민"; break;
+                    case "0": text = "노예"; break;
+                }
+                document.getElementsByClassName('adversarycard_set')[0].innerHTML = text
+                document.getElementsByClassName('adversarycard_set')[0].classList.remove('adversarycard_set')
+                
+                //상대카드가 오픈되었는데, 내 필드에도 이미 오픈된카드가 있을경우, 대결을 한다.
+                if(acc.childElementCount==1 && acc.children[0].classList[0]=='adversarycard' && mcc.children[0].classList.length==1){
+                    fight()
+                }
             }
-        }
     }
     if (window["WebSocket"]) {
         conn = new WebSocket("ws://" + document.location.host + "/ws");
         conn.onclose = function (evt) {
             var item = document.createElement("div");
             item.innerHTML = "<b>Connection closed.</b>";
-            appendLog(item);
+            // appendLog(item);
             return false;
         };
         conn.onmessage = function (evt) {
@@ -141,7 +186,6 @@ window.onload = function () {
 
             var keyRegex = /-?[0-9]/;
             var key = keyRegex.exec(str)[0]
-            console.log('event', eventType[0], 'key', key )
             switch (eventType[0]){
                 case 'Join':
                     setNames(key)
@@ -151,14 +195,15 @@ window.onload = function () {
                     moveCard(key)
                     break;
                 case 'Fight':
-                    enableCards()
+                    setTimeout(enableCards(key), 10000)
+                    
                     break;
             }
         };
     } else {
         var item = document.createElement("div");
         item.innerHTML = "<b>Your browser does not support WebSockets.</b>";
-        appendLog(item);
+        // appendLog(item);
     }
 };
 </script>
@@ -168,24 +213,13 @@ window.onload = function () {
 </head>
 <body>
     <div id="adversarycards">
-        <div id="adversaryChosenCard"> </div>
-        <button class="adversarycard_back" id="ac0" disabled="true"> 카드 0</button>
-        <button class="adversarycard_back" id="ac1" disabled="true"> 카드 1</button>
-        <button class="adversarycard_back" id="ac2" disabled="true"> 카드 2</button>
-        <button class="adversarycard_back" id="ac3" disabled="true"> 카드 3</button>
-        <button class="adversarycard_back" id="ac4" disabled="true"> 카드 4</button>
+        <div id="adversaryChosenCard"></div>
     </div>
-    
     <span id="adversaryName">Player 2 Name</span>
     <span id="myName">Player 1 Name</span>
     <button id="Join">Join</button>
     <div id="mycards"">
-        <div id="myChosenCard"> </div>
-        <button class="mycard" id="mc0" disabled="true"> 카드 0</button>
-        <button class="mycard" id="mc1" disabled="true"> 카드 1</button>
-        <button class="mycard" id="mc2" disabled="true"> 카드 2</button>
-        <button class="mycard" id="mc3" disabled="true"> 카드 3</button>
-        <button class="mycard" id="mc4" disabled="true"> 카드 4</button>
+        <div id="myChosenCard"></div>
     </div>
 <div id="log"></div> 
 
@@ -206,8 +240,11 @@ window.onload = function () {
     
     #Join{
         position: absolute;
-        left: 50%;
+        left: 20%;
         top: 30%;
+        width: 50%;
+        height: 50%;
+        font-size: 100px;
     }
     #adversaryChosenCard{
         position:relative;
