@@ -1,19 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<title>Chat Example</title>
+<title>E Card</title>
 <script type="text/javascript">
 window.onload = function () {
     var conn;
     var mcc = document.getElementById("myChosenCard");  
     var acc = document.getElementById("adversaryChosenCard");  
-
+    var myHand = document.getElementById("mycards"); 
+    var advHand = document.getElementById("adversarycards"); 
+    var clientID
     document.getElementById('Join').onclick = function(){
         //conn.send("Join");
         conn.send(JSON.stringify({ Type: "Join", Key:""}));
         this.remove();
     } 
     function setNames(k){
+        clientID = k%2 
         n1 = (k%2==0)? "카이지": "토네가와"
         n2 = (k%2==0)? "토네가와" : "카이지"
         document.getElementById("myName").innerText = n1
@@ -22,7 +25,6 @@ window.onload = function () {
             document.getElementById('Join').remove()
         }
         //아랫코드는 패를 정해주는코드임. 주의할점은 상대플레이어없이 대기실에 대기햇던 카드는 상대방이 참가한 순간 위치가 달라짐. 원래 게임시작은 같이 하는거니까.
-        
         let r = Math.floor(Math.random() * (5))
         for(var i =0 ; i < 5; i++){
             if(i==r && document.getElementById("myName").innerText=="카이지"){
@@ -34,33 +36,78 @@ window.onload = function () {
             }
         }
     }
-
-    for (var i =0 ; i < 5; i++){
-        document.getElementsByClassName('mycard')[i].onclick = function(){
-        if(mcc.childElementCount!=1){
-            document.getElementById(this.id).classList.add('mycard_back');
-            mcc.appendChild(this)   
-            conn.send(JSON.stringify({ Type: "CardSelect", Key:this.id}));
-        }else{
-            document.getElementById(this.id).classList.remove('mycard_back');
-            switch (this.innerText){
-                case "왕": 
-                    conn.send(JSON.stringify({ Type: "CardSelect", Key:"2"}));
+        //카드의 종류에 맞게 숫자 값을 돌려준다.
+        function getCardKey(text){
+        var cardKey = ""
+        switch(text){
+                case "왕":
+                    cardKey = 2;
                     break;
                 case "시민": 
-                    conn.send(JSON.stringify({ Type: "CardSelect", Key:"1"}));    
+                    cardKey = 1;
                     break;
                 case "노예":
-                    conn.send(JSON.stringify({ Type: "CardSelect", Key:"0"}));      
+                    cardKey = 0;
                     break;
+        }
+        return cardKey
+    }
+    var myCardKey;
+    for (var i =0 ; i < 5; i++){
+        document.getElementsByClassName('mycard')[i].onclick = function(){
+        if(mcc.childElementCount!=1){ //세트
+            for(var j = 1 ; j < myHand.childElementCount ; j++){
+                if(myHand.children[j].id != this.id){
+                    myHand.children[j].disabled =true
+                }
+            }
+            document.getElementById(this.id).classList.add('mycard_back');
+            mcc.appendChild(this)   
+            conn.send(JSON.stringify({ Type: "CardSelect", Key:this.id})); //솔직히 키가 그렇게 중요하지않다..
+            
+        }else{ //오픈
+            document.getElementById(this.id).disabled = true
+            document.getElementById(this.id).classList.remove('mycard_back');
+            myCardKey= getCardKey(this.innerText)
+            conn.send(JSON.stringify({ Type: "CardSelect", Key:""+myCardKey}));
+            //만약 상대진영의 카드가 오픈상태일때 승부를 낸다.
+            if(acc.childElementCount==1 && acc.children[0].classList[0]=='adversarycard'){
+                fight()
             }
           }
         } 
     }
+    function enableCards(){
+        for(var j = 1 ; j < myHand.childElementCount; j++){
+                myHand.children[j].disabled =false
+        }
+    }
+    function fight(){
+        var advCardKey = getCardKey(acc.children[0].innerText);           
+            if(myCardKey == advCardKey){ //시민 vs 시민 = 무승부
+                console.log("무승부")
+                if(clientID %2 ==0 ){
+                    conn.send(JSON.stringify({ Type: "Fight", Key:"-1"}));
+                }
+            }else if(myCardKey > advCardKey && myCardKey - advCardKey==1){ //(왕 vs 시민),(시민vs노예) = 승
+                console.log("승")
+                conn.send(JSON.stringify({ Type: "Fight", Key:""+clientID}));
+            }else if(myCardKey > advCardKey && myCardKey - advCardKey!=1){// (왕 vs 노예) = 패 
+                console.log("패")
+            }else if(myCardKey < advCardKey && advCardKey - myCardKey==1){//(노예 vs 시민),(시민vs왕) = 패
+                console.log("패")
+            }else if(myCardKey < advCardKey && advCardKey - myCardKey!=1){//(노예 vs 왕) = 승
+                console.log("승")
+                conn.send(JSON.stringify({ Type: "Fight", Key:""+clientID}));
+            }
+          
+            mcc.removeChild(mcc.children[0])
+            acc.removeChild(acc.children[0])
+    }
     function moveCard(k){
         if(acc.childElementCount!=1){
-            document.getElementsByClassName('adversarycard_back')[k].classList.add('adversarycard_set')
-            acc.appendChild(document.getElementsByClassName('adversarycard_back')[k])   
+            document.getElementsByClassName('adversarycard_back')[0].classList.add('adversarycard_set')
+            acc.appendChild(document.getElementsByClassName('adversarycard_back')[0])   
         }else{
             document.getElementsByClassName('adversarycard_set')[0].classList.remove('adversarycard_back')
             document.getElementsByClassName('adversarycard_set')[0].classList.add('adversarycard')
@@ -70,8 +117,12 @@ window.onload = function () {
                 case "1": text = "시민"; break;
                 case "0": text = "노예"; break;
             }
+            console.log("text open", text,"k", k)
             document.getElementsByClassName('adversarycard_set')[0].innerHTML = text
             document.getElementsByClassName('adversarycard_set')[0].classList.remove('adversarycard_set')
+            if(acc.childElementCount==1 && acc.children[0].classList[0]=='adversarycard' && mcc.children[0].classList.length==1){
+                fight()
+            }
         }
     }
     if (window["WebSocket"]) {
@@ -85,15 +136,22 @@ window.onload = function () {
         conn.onmessage = function (evt) {
             var str = String(evt.data)
             var strLength = String(evt.data).length
-            var eventType =str.substring(0, strLength - 1)
-         
-            var key = str.substring(strLength-1, strLength)
-            switch (eventType){
+            var eventRegex = /[a-zA-Z]*/;
+            var eventType = eventRegex.exec(str)
+
+            var keyRegex = /-?[0-9]/;
+            var key = keyRegex.exec(str)[0]
+            console.log('event', eventType[0], 'key', key )
+            switch (eventType[0]){
                 case 'Join':
                     setNames(key)
+                    enableCards()
                     break;
                 case 'CardSelect':
                     moveCard(key)
+                    break;
+                case 'Fight':
+                    enableCards()
                     break;
             }
         };
@@ -111,11 +169,11 @@ window.onload = function () {
 <body>
     <div id="adversarycards">
         <div id="adversaryChosenCard"> </div>
-        <button class="adversarycard_back" id="ac0"> 카드 0</button>
-        <button class="adversarycard_back" id="ac1"> 카드 1</button>
-        <button class="adversarycard_back" id="ac2"> 카드 2</button>
-        <button class="adversarycard_back" id="ac3"> 카드 3</button>
-        <button class="adversarycard_back" id="ac4"> 카드 4</button>
+        <button class="adversarycard_back" id="ac0" disabled="true"> 카드 0</button>
+        <button class="adversarycard_back" id="ac1" disabled="true"> 카드 1</button>
+        <button class="adversarycard_back" id="ac2" disabled="true"> 카드 2</button>
+        <button class="adversarycard_back" id="ac3" disabled="true"> 카드 3</button>
+        <button class="adversarycard_back" id="ac4" disabled="true"> 카드 4</button>
     </div>
     
     <span id="adversaryName">Player 2 Name</span>
@@ -123,11 +181,11 @@ window.onload = function () {
     <button id="Join">Join</button>
     <div id="mycards"">
         <div id="myChosenCard"> </div>
-        <button class="mycard" id="mc0"> 카드 0</button>
-        <button class="mycard" id="mc1"> 카드 1</button>
-        <button class="mycard" id="mc2"> 카드 2</button>
-        <button class="mycard" id="mc3"> 카드 3</button>
-        <button class="mycard" id="mc4"> 카드 4</button>
+        <button class="mycard" id="mc0" disabled="true"> 카드 0</button>
+        <button class="mycard" id="mc1" disabled="true"> 카드 1</button>
+        <button class="mycard" id="mc2" disabled="true"> 카드 2</button>
+        <button class="mycard" id="mc3" disabled="true"> 카드 3</button>
+        <button class="mycard" id="mc4" disabled="true"> 카드 4</button>
     </div>
 <div id="log"></div> 
 

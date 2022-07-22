@@ -5,7 +5,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -83,7 +82,6 @@ func (c *Client) readPump() {
 				data: []byte(message.Type),
 				id:   c.id,
 			}
-			fmt.Println("key type", message.Type)
 			c.hub.broadcast1 <- sendObj
 			break
 		case "CardSelect":
@@ -94,11 +92,32 @@ func (c *Client) readPump() {
 				id:   c.id,
 				key:  []byte(keyStr),
 			}
-			fmt.Println("key type", message.Type, "key", keyStr)
 			c.hub.broadcast2 <- sendObj
 			break
+		case "Fight":
+			keyNumber := message.Key
+			var keyStr string
+			if string(keyNumber) != "-1" {
+				if string(keyNumber) == "0" {
+					keyStr = "Kaiji"
+				} else if string(keyNumber) == "1" {
+					keyStr = "Tonegawa"
+				}
+				sendObj := Log{
+					data:   []byte(message.Type),
+					winner: c,
+					result: []byte(keyStr + " wins"),
+				}
+				c.hub.log <- sendObj
+			} else {
+				sendObj := Log{
+					data:   []byte(message.Type),
+					winner: nil,
+					result: []byte("Draw"),
+				}
+				c.hub.log <- sendObj
+			}
 		}
-
 	}
 }
 
@@ -128,7 +147,7 @@ func (c *Client) writePump() {
 				return
 			}
 
-			id := []byte(c.id)
+			id := []byte(c.id) //받는 사람 c.id
 			message := append(info.data, id...)
 			w.Write(message)
 
@@ -190,7 +209,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//id random
-	idc := []byte(strconv.Itoa(count))
+	idc := []byte(strconv.Itoa(count % 2))
 	client := &Client{hub: hub, conn: conn, send1: make(chan Info), send2: make(chan Info), id: idc}
 	count++
 	client.hub.register <- client
