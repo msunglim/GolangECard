@@ -14,21 +14,54 @@ window.onload = function () {
     var myPoint = 0
     var advPoint = 0
     var clientID
-
+    var round = 0; //switch cards when round %3 ==0..
+    var turn = 0; //1,3 king first. 2,4 slave first
+    var kaijiCard = "노예"
+    var tonegawaCard =  "왕"
+    var myPanel = document.getElementById("myPanel")
+    var advPanel = document.getElementById("adversaryPanel")
 
     document.getElementById('Join').onclick = function(){
-        //conn.send("Join");
         conn.send(JSON.stringify({ Type: "Join", Key:""}));
         this.remove();
     } 
+    function displayPriorityPlayer(){
+        console.log("round", round, "turn", turn)// 123 ,789 카이지가 왕
+        var tf = (clientID%2 ==0) ?(turn %2 !=0): (turn %2 ==0) 
+
+        var myTurn = function(){
+            myPanel.classList.add("priorityPlayer")
+            advPanel.classList.remove("priorityPlayer")
+        }
+        var advTurn = function(){
+            advPanel.classList.add("priorityPlayer")
+            myPanel.classList.remove("priorityPlayer")
+        }
+        var myTurnDecider = ((round >=0 && round <4)||(round>=7 && round <10))? myTurn: advTurn
+        var advTurnDecider = ((round >=0 && round <4)||(round>=7 && round <10))? advTurn: myTurn
+        if (tf){ //왕은 0,2,4 선공..
+            myTurnDecider()
+         }else{
+            advTurnDecider()
+        }
+    }
     function shuffleHand(){
+        //판수를 업데이트합니다..
+        document.getElementById("round").innerText = round
+        
+        if( (round-1)%3 ==0){ //switch deck when round 4, 7, 10. 
+            var copy = kaijiCard
+            kaijiCard = tonegawaCard
+            tonegawaCard = copy
+        }
         //아랫코드는 패를 정해주는코드임. 주의할점은 상대플레이어없이 대기실에 대기햇던 카드는 상대방이 참가한 순간 위치가 달라짐. 원래 게임시작은 같이 하는거니까.
         let r = Math.floor(Math.random() * (5))
+        
         for(var i =0 ; i < 5; i++){
             if(i==r && document.getElementById("myName").innerText=="카이지"){
-                document.getElementsByClassName('mycard')[i].innerText = "노예"
+                document.getElementsByClassName('mycard')[i].innerText = kaijiCard
             }else if(i==r && document.getElementById("myName").innerText=="토네가와"){
-                document.getElementsByClassName('mycard')[i].innerText = "왕"
+                document.getElementsByClassName('mycard')[i].innerText = tonegawaCard
             }else {
                 document.getElementsByClassName('mycard')[i].innerText = "시민"
             }
@@ -58,32 +91,33 @@ window.onload = function () {
             card2.innerText = "카드" + i
         }
         for (var i =0 ; i < 5; i++){
-        document.getElementsByClassName('mycard')[i].onclick = function(){
-        if(mcc.childElementCount!=1){ //세트
-            for(var j = 1 ; j < myHand.childElementCount ; j++){
-                if(myHand.children[j].id != this.id){
-                    myHand.children[j].disabled =true
+            document.getElementsByClassName('mycard')[i].onclick = function(){
+            if(mcc.childElementCount!=1){ //세트
+                for(var j = 1 ; j < myHand.childElementCount ; j++){
+                    if(myHand.children[j].id != this.id){
+                        myHand.children[j].disabled =true
+                    }
                 }
-            }
-            document.getElementById(this.id).classList.add('mycard_back');
-            if(acc.childElementCount!=1){
-                document.getElementById(this.id).disabled = true
-            }
-            mcc.appendChild(this)   
-            conn.send(JSON.stringify({ Type: "CardSelect", Key:this.id})); //솔직히 키가 그렇게 중요하지않다..
+                document.getElementById(this.id).classList.add('mycard_back');
+                if(acc.childElementCount!=1){
+                    document.getElementById(this.id).disabled = true
+                }
+                mcc.appendChild(this)   
+                conn.send(JSON.stringify({ Type: "CardSelect", Key:this.id})); //솔직히 키가 그렇게 중요하지않다..
+                
+            }else{ //오픈
             
-        }else{ //오픈
-            document.getElementById(this.id).disabled = true
-            document.getElementById(this.id).classList.remove('mycard_back');
-            myCardKey= getCardKey(this.innerText)
-            this.classList.add('card_open')
-            conn.send(JSON.stringify({ Type: "CardSelect", Key:""+myCardKey}));
-            //만약 상대진영의 카드가 오픈상태일때 승부를 낸다.
-            if(acc.childElementCount==1 && acc.children[0].classList[1]=='card_open' && mcc.children[0].classList[1]=='card_open'){
-                fight()
-              }
-             }
-          } 
+                document.getElementById(this.id).disabled = true
+                document.getElementById(this.id).classList.remove('mycard_back');
+                myCardKey= getCardKey(this.innerText)
+                this.classList.add('card_open')
+                conn.send(JSON.stringify({ Type: "CardSelect", Key:""+myCardKey}));
+                //만약 상대진영의 카드가 오픈상태일때 승부를 낸다.
+                if(acc.childElementCount==1 && acc.children[0].classList[1]=='card_open' && mcc.children[0].classList[1]=='card_open'){
+                    fight()
+                 }
+                }
+            } 
         }
         shuffleHand()
     }
@@ -125,11 +159,22 @@ window.onload = function () {
     var myCardKey;
 
     var point = 0
-    //join이나 fight이 끝나고 패를 클릭가능캐함..
+    var priorityPlayer = 0 // clientID % 2 == priorityPlayer 부터 시작한다. 0일경우 자기 페널을 하이라트하고 다를경우 상대의프로필을 하이라이트한다.
+    //join이나 fight이 끝나고 패를 클릭가능캐함.. 그때 라운드나, 턴을 바꾼다. 라운드가 바뀌엇을경우는 턴을 0으로 만들고.. 바뀌지않는경우(무승부)는 턴을 증가시킨다.
     function enableCards(key){
+        
+        turn++  
+        displayPriorityPlayer()
+        document.getElementById("turn").innerText = turn
         if(key != -1){ //무승부가 아니고서야 서로 노예 또는 왕을 썼다. 그렇다면 패를 초기화한다.
+            round++           
             getInitialHand()
-            if(key!= undefined){
+            
+           
+            if(key!= undefined){ //undefined인 경우는 처음 시작.. join에서..
+                turn = 1
+                displayPriorityPlayer()
+                document.getElementById("turn").innerText = turn
                 if(key== clientID){ //내가 승리자
                     var currScore = parseInt(myScore.innerText)
                     currScore += point
@@ -141,6 +186,7 @@ window.onload = function () {
                     advScore.innerText = currScore
                     advPoint = currScore
                 }
+               
             }
         }
         for(var j = 1 ; j < myHand.childElementCount; j++){
@@ -263,6 +309,10 @@ window.onload = function () {
         </div>  
         <span id="adversaryName">Player 2 Name</span>
         <p id="adversaryScore">0</p>
+    </div>
+    <div>
+        <span id="round"></span>
+        <span id="turn"></span>
     </div>
     <div id="myPanel">
         <div>
@@ -397,6 +447,23 @@ body {
     background-color: white;
     color: black;
     border: double;
+}
+#round{
+   position: absolute; 
+   right: 10%;
+   bottom: 50%;
+   font-size: 30px;
+}
+
+#turn{
+   position: absolute; 
+   right: 5%;
+   bottom: 50%;
+   font-size: 30px;
+}
+
+.priorityPlayer{
+    border: 3px solid cyan;
 }
 </style>
 </body>
