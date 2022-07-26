@@ -20,26 +20,39 @@ window.onload = function () {
     var tonegawaCard =  "왕"
     var myPanel = document.getElementById("myPanel")
     var advPanel = document.getElementById("adversaryPanel")
-
+    var isMyTurn = false;
+    var mybet = 0
+    var advbet = 0
+    var myBetting = document.getElementById('myBet')
+    var advBetting = document.getElementById('advBet')
     document.getElementById('Join').onclick = function(){
         conn.send(JSON.stringify({ Type: "Join", Key:""}));
         this.remove();
     } 
+
+    //이번턴에 누가 우선권을 가졌는지 표시해줍니다.
+    //왕을 가진경우, 1,3,5번째 턴에 먼저 카드를 내야합니다.
+    //12판중 1,2,3, 7,8,9때는 카이지가 왕을 가져갑니다. 나머지는 토네가와가 왕입니다.
+    //turnDecider는 예를 들어 카이지일경우, tf가 !=0으로 결정되어 1,3,5번째 턴에는 특정행동을 하게 합니다.
+    //그 특정행동은 myTurnDecider로 평가되는데, 라운드에 맞게 카이지의 행동을 결정하는것이지요. 라운드에 따라 1,3,5에 맞게 자기의 것을 하이라이트할수도, 토네가와의 것을 하이라이트할 수 있습니다.
     function displayPriorityPlayer(){
-        console.log("round", round, "turn", turn)// 123 ,789 카이지가 왕
         var tf = (clientID%2 ==0) ?(turn %2 !=0): (turn %2 ==0) 
 
         var myTurn = function(){
             myPanel.classList.add("priorityPlayer")
             advPanel.classList.remove("priorityPlayer")
+            isMyTurn = true
+            setCards(false)
         }
         var advTurn = function(){
             advPanel.classList.add("priorityPlayer")
             myPanel.classList.remove("priorityPlayer")
+            isMyTurn = false
+            setCards(true)
         }
         var myTurnDecider = ((round >=0 && round <4)||(round>=7 && round <10))? myTurn: advTurn
         var advTurnDecider = ((round >=0 && round <4)||(round>=7 && round <10))? advTurn: myTurn
-        if (tf){ //왕은 0,2,4 선공..
+        if (tf){ //왕은 1,3,5번째 턴에 선공..
             myTurnDecider()
          }else{
             advTurnDecider()
@@ -139,6 +152,13 @@ window.onload = function () {
         if(document.getElementById('Join')!=null){
             document.getElementById('Join').remove()
         }
+
+        var primaryRank = (k%2==0)? "왕" : "노예"
+        var secondaryRank = (k%2==0)? "노예" :"왕"
+        document.getElementById('firstRank').innerText = primaryRank
+        document.getElementById('secondRank').innerText = secondaryRank
+        document.getElementById('thirdRank').innerText = primaryRank
+        document.getElementById('fourthRank').innerText = secondaryRank
     }
         //카드의 종류에 맞게 숫자 값을 돌려준다.
         function getCardKey(text){
@@ -156,64 +176,98 @@ window.onload = function () {
         }
         return cardKey
     }
+    //내 패를 활성화 또는 비활성화한다.
+    function setCards(tf){
+        for(var j = 1 ; j < myHand.childElementCount; j++){
+                myHand.children[j].disabled =tf
+        }
+    }
+
+    //베팅을 이렇게할려헀는데.. ㅠㅠ
+    function bet(){
+    //    mybet = parseInt(prompt("Enter your bet for this round"))
+    //        while(mybet <=0 || !Number.isInteger(mybet)){
+    //         mybet = parseInt(prompt("Enter your bet for this round"))
+    //    }
+       myBetting.innerText = mybet
+    }
     var myCardKey;
 
     var point = 0
     var priorityPlayer = 0 // clientID % 2 == priorityPlayer 부터 시작한다. 0일경우 자기 페널을 하이라트하고 다를경우 상대의프로필을 하이라이트한다.
     //join이나 fight이 끝나고 패를 클릭가능캐함.. 그때 라운드나, 턴을 바꾼다. 라운드가 바뀌엇을경우는 턴을 0으로 만들고.. 바뀌지않는경우(무승부)는 턴을 증가시킨다.
+    function updateScore(key){
+        if(key== clientID){ //내가 승리자
+            var currScore = parseInt(myScore.innerText)
+            currScore += point * mybet
+            myScore.innerText = currScore
+            myPoint = currScore
+            
+        }else{ //상대가 승리
+            var currScore = parseInt(advScore.innerText)
+            currScore += point
+            advScore.innerText = currScore
+            advPoint = currScore
+        }
+    }
     function enableCards(key){
-        
+        console.log("카드초기화", round)
         turn++  
         displayPriorityPlayer()
         document.getElementById("turn").innerText = turn
         if(key != -1){ //무승부가 아니고서야 서로 노예 또는 왕을 썼다. 그렇다면 패를 초기화한다.
-            round++           
-            getInitialHand()
             
+            round++          
+            getInitialHand()
            
             if(key!= undefined){ //undefined인 경우는 처음 시작.. join에서..
                 turn = 1
                 displayPriorityPlayer()
                 document.getElementById("turn").innerText = turn
-                if(key== clientID){ //내가 승리자
-                    var currScore = parseInt(myScore.innerText)
-                    currScore += point
-                    myScore.innerText = currScore
-                    myPoint = currScore
-                }else{ //상대가 승리
-                    var currScore = parseInt(advScore.innerText)
-                    currScore += point
-                    advScore.innerText = currScore
-                    advPoint = currScore
-                }
-               
+                updateScore(key)
+            }
+            // setTimeout(bet(), 5000)
+        }
+        if (key == undefined){
+            //또 하는 이유는 join일경우 key 가 undefiend이라서.. 아니고서야 그냥 한번더함.. 
+            if(isMyTurn){
+                setCards(false)
+            }else{
+                setCards(true)
             }
         }
-        for(var j = 1 ; j < myHand.childElementCount; j++){
-            myHand.children[j].disabled =false
-        }
     }
+
     
     function fight(){
         setTimeout(() => {//이걸하는 이유는 대전결과를 어느정도 육안으로 볼 수 잇게 하기와 데이터속도조절에 있음.
             var advCardKey = getCardKey(acc.children[0].innerText); 
+            var WinOrLost = function(tf){
+                var roundID = "r"+round
+                document.getElementById(roundID).innerText = tf
+            }
+            console.log("싸우자 시발", round)
             if(myCardKey == advCardKey){ //시민 vs 시민 = 무승부
                 if(clientID %2 ==0 ){
                     conn.send(JSON.stringify({ Type: "Fight", Key:"-1"}));
                 }
             }else if(myCardKey > advCardKey && myCardKey - advCardKey==1){ //(왕 vs 시민),(시민vs노예) = 승. 승점 10점
                 console.log("승")
-                point = 10
+                point = 1
+                WinOrLost("O")      
                 conn.send(JSON.stringify({ Type: "Fight", Key:""+clientID}));
             }else if(myCardKey > advCardKey && myCardKey - advCardKey!=1){// (왕 vs 노예) = 패 
                 console.log("패")
-                point = 50
+                point = 5
+                WinOrLost("X")      
             }else if(myCardKey < advCardKey && advCardKey - myCardKey==1){//(노예 vs 시민),(시민vs왕) = 패
                 console.log("패")
-                point = 10
+                point = 1
+                WinOrLost("X")
             }else if(myCardKey < advCardKey && advCardKey - myCardKey!=1){//(노예 vs 왕) = 승. 승점 50점
                 console.log("승")
-                point = 50
+                point = 5
+                WinOrLost("O")      
                 conn.send(JSON.stringify({ Type: "Fight", Key:""+clientID}));
             }
             try{
@@ -226,7 +280,7 @@ window.onload = function () {
             }catch{
             }
 
-        }, 2000);
+        }, 1000);
         
     }
     function moveCard(k){ //수틀리면 싸움ㄷㄷ
@@ -234,11 +288,14 @@ window.onload = function () {
                 if( mcc.children[0].classList.contains("mycard_back")){
                     mcc.children[0].disabled = false
                 }
-                
             }
-            if(acc.childElementCount!=1){ //카드를 세트함
+            if(acc.childElementCount!=1){ // 상대가 카드를 세트함
                 document.getElementsByClassName('adversarycard_back')[0].classList.add('adversarycard_set')
                 acc.appendChild(document.getElementsByClassName('adversarycard_back')[0])   
+                if(mcc.childElementCount!=1){ //상대가 카드를 세트했을때, 내가 카드를 내지않은 상태라면 내 패를 모두 활성화, 이미 카드가 전부 꺼내져있다면 활성화 할 필요없음.
+                    setCards(false)
+                }
+                
             }else{ //세트된 카드를 오픈함
                 
                 document.getElementsByClassName('adversarycard_set')[0].classList.remove('adversarycard_back')
@@ -307,60 +364,155 @@ window.onload = function () {
         <div>
             <img id="adversaryImage" src="" style="width: 150px;"> 
         </div>  
-        <span id="adversaryName">Player 2 Name</span>
+        <span id="adversaryName">Player 2</span>
         <p id="adversaryScore">0</p>
+        <p id="adversaryBet"></p>
+    </div>
+    <div id="roundAndTurn">
+        <div >
+            Round:
+            <span id="round"></span>
+        </div>
+        <div>
+            Turn:
+            <span id="turn"></span>
+        </div>
     </div>
     <div>
-        <span id="round"></span>
-        <span id="turn"></span>
+        <table class="table">
+            <tr class="row">
+               <td class="column"></td>
+               <td class="column">1</td>
+               <td class="column">2</td> 
+             
+               <td class="column">3</td>
+               <td class="column">4</td>
+               <td class="column">5</td>
+               <td class="column">6</td>
+               <td class="column">7</td>
+               <td class="column">8</td>
+               <td class="column">9</td>
+               <td class="column">10</td>
+               <td class="column">11</td>
+               <td class="column">12</td>
+            </tr>
+            <tr class="row">
+                <td  class="column">계급</td>
+                <td colspan="3" class="column" id="firstRank">왕</td>
+                <td colspan="3" class="column" id="secondRank">노예</td>
+                <td colspan="3" class="column" id="thirdRank">왕</td>
+                <td colspan="3" class="column" id="fourthRank">노예</td>
+            </tr>
+            <tr class="row">
+                <td class="column">승패</td>
+                <td class="column" id="r1"></td>
+                <td class="column" id="r2"></td> 
+                <td class="column" id="r3"></td>
+                <td class="column" id="r4"></td>
+                <td class="column" id="r5"></td>
+                <td class="column" id="r6"></td>
+                <td class="column" id="r7"></td>
+                <td class="column" id="r8"></td>
+                <td class="column" id="r9"></td>
+                <td class="column" id="r10"></td>
+                <td class="column" id="r11"></td>
+                <td class="column" id="r12"></td>
+             </tr>
+             <tr class="row">
+                <td class="column">베팅</td>
+                <td class="column"></td>
+                <td class="column"></td> 
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+             </tr>
+             <tr class="row">
+                <td class="column">여유</td>
+                <td class="column"></td>
+                <td class="column"></td> 
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+                <td class="column"></td>
+             </tr>
+        </table>
     </div>
     <div id="myPanel">
         <div>
             <img id="myImage" src="" style="width: 150px;"> 
         </div>
-        <span id="myName">Player 1 Name</span>
+        <span id="myName">Player 1</span>
         <p id="myScore">0</p>
+        <p id="myBet"></p>
     </div>
     <button id="Join">Join</button>
     <div id="mycards"">
         <div id="myChosenCard"></div>
     </div>
-<div id="log"></div> 
+<!-- <div id="log"></div>  -->
 
 
 
 <!-- 이거 어떻게 독립시킬까? -->
 <style type="text/css">
-    #adversaryPanel{
-        position: absolute;
-        right: 5%;
-        top: 10%;
+    .table{
+        border-collapse: collapse;
+        margin-left: 20px;
     }
+    .column{
+        border: 3px solid black;
+        text-align: center;
+        margin: 0;
+        width: 60px;
+        height: 100px;
+        font-size: 30px;
+        background-color: aliceblue;
+    }
+  
     #myPanel{
         position: absolute;
         right: 5%;
-        bottom: 10%;
+        bottom: 5%;
+        
     }
-    
+    #adversaryPanel{
+        position: absolute;
+        right: 5%;
+        top: 5%;
+        
+    }
     #Join{
         position: absolute;
-        left: 20%;
+        left: 50%;
         top: 30%;
-        width: 50%;
-        height: 50%;
+        width: 25%;
+        height: 25%;
         font-size: 100px;
     }
     #adversaryChosenCard{
         position:relative;
         top: 180px;
         width: max-content;
-        left: 50%;
+        margin-inline: auto;
     }
     #myChosenCard{
         position:relative;
         top: -40px;
         width: max-content;
-        left: 50%;
+        margin-inline: auto;
     }
     html {
     overflow: hidden;
@@ -397,13 +549,14 @@ body {
     bottom: 1em;
     width: -webkit-fill-available;
     text-align: center;
-    
+    left: 20%;
 }
 #adversarycards{
     position: absolute;
     top: 1em;
     width: -webkit-fill-available;
     text-align: center;
+    left: 20%;
 }
 .mycard{
     width: 50px;
@@ -434,11 +587,23 @@ body {
 	position: relative;
     text-align: center;
 }
+#myBet{
+    border:2px solid blue;
+    font-size:  20px;
+	position: relative;
+    text-align: center;
+}
 #adversaryName{
     font-size:  20px;
 }
 #adversaryScore{
-    border:2px solid blue;
+    border:2px solid darkred;
+    font-size:  20px;
+	position: relative;
+    text-align: center;
+}
+#adversaryBet{
+    border:2px solid darkred;
     font-size:  20px;
 	position: relative;
     text-align: center;
@@ -448,18 +613,11 @@ body {
     color: black;
     border: double;
 }
-#round{
-   position: absolute; 
-   right: 10%;
-   bottom: 50%;
-   font-size: 30px;
-}
 
-#turn{
-   position: absolute; 
-   right: 5%;
-   bottom: 50%;
+#roundAndTurn{
+   margin: 50px;
    font-size: 30px;
+   
 }
 
 .priorityPlayer{

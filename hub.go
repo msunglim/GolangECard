@@ -13,7 +13,7 @@ type Info struct {
 }
 type Log struct {
 	data   []byte
-	winner *Client
+	client *Client
 	result []byte
 }
 
@@ -26,24 +26,26 @@ type Hub struct {
 	clients map[*Client]bool
 
 	// Inbound messages from the clients.
-	broadcast1 chan Info
-	broadcast2 chan Info
+	join       chan Info
+	cardselect chan Info
 	// Register requests from the clients.
 	register chan *Client
 	// Unregister requests from clients.
 	unregister chan *Client
-	log        chan Log
+	battle     chan Log
+	betting    chan Log
 }
 
 func newHub() *Hub {
 
 	return &Hub{
-		broadcast1: make(chan Info),
-		broadcast2: make(chan Info),
+		join:       make(chan Info),
+		cardselect: make(chan Info),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		clients:    make(map[*Client]bool),
-		log:        make(chan Log),
+		battle:     make(chan Log),
+		betting:    make(chan Log),
 	}
 }
 
@@ -58,7 +60,7 @@ func (h *Hub) run() {
 				close(client.send1)
 				close(client.send2)
 			}
-		case info := <-h.broadcast1: //모두를 업데이트하지만, 자기 사정에 맞게.
+		case info := <-h.join: //모두를 업데이트하지만, 자기 사정에 맞게.
 			for client := range h.clients {
 				select {
 				case client.send1 <- info:
@@ -67,7 +69,7 @@ func (h *Hub) run() {
 					delete(h.clients, client)
 				}
 			}
-		case info := <-h.broadcast2: //발신자를 제외한 나머지 클라이언트 업데이트
+		case info := <-h.cardselect: //발신자를 제외한 나머지 클라이언트 업데이트
 			strId := string(info.id[:])
 			var senderId string = string(strId)
 
@@ -82,18 +84,43 @@ func (h *Hub) run() {
 					}
 				}
 			}
-		case matchLog := <-h.log:
+		case matchLog := <-h.battle:
 			history = append(history, matchLog)
 			var info Info
-			if matchLog.winner != nil {
+			if matchLog.client != nil {
 				info = Info{
 					data: matchLog.data,
-					id:   matchLog.winner.id,
-					key:  matchLog.winner.id,
+					id:   matchLog.client.id,
+					key:  matchLog.client.id,
 				}
 			} else {
 				info = Info{
 					data: matchLog.data,
+					id:   []byte{},
+					key:  []byte("-1"),
+				}
+			}
+			for client := range h.clients {
+				select {
+				case client.send2 <- info:
+					fmt.Println("added to ", client.id)
+				default:
+					close(client.send2)
+					delete(h.clients, client)
+				}
+			}
+		case betLog := <-h.betting:
+			history = append(history, betLog)
+			var info Info
+			if betLog.client != nil {
+				info = Info{
+					data: betLog.data,
+					id:   betLog.client.id,
+					key:  betLog.client.id,
+				}
+			} else {
+				info = Info{
+					data: betLog.data,
 					id:   []byte{},
 					key:  []byte("-1"),
 				}
