@@ -83,7 +83,7 @@ func (c *Client) readPump() {
 				data: []byte(message.Type),
 				id:   c.id,
 			}
-			c.hub.broadcast1 <- sendObj
+			c.hub.join <- sendObj
 			break
 		case "CardSelect":
 			keyNumber := message.Key[len(message.Key)-1 : len(message.Key)]
@@ -93,7 +93,7 @@ func (c *Client) readPump() {
 				id:   c.id,
 				key:  []byte(keyStr),
 			}
-			c.hub.broadcast2 <- sendObj
+			c.hub.cardselect <- sendObj
 			break
 		case "Fight":
 			keyNumber := message.Key
@@ -106,17 +106,17 @@ func (c *Client) readPump() {
 				}
 				sendObj := Log{
 					data:   []byte(message.Type),
-					winner: c,
+					client: c,
 					result: []byte(keyStr + " wins"),
 				}
-				c.hub.log <- sendObj
+				c.hub.battle <- sendObj
 			} else {
 				sendObj := Log{
 					data:   []byte(message.Type),
-					winner: nil,
+					client: nil,
 					result: []byte("Draw"),
 				}
-				c.hub.log <- sendObj
+				c.hub.battle <- sendObj
 			}
 		}
 	}
