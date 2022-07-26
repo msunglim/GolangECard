@@ -5,6 +5,7 @@
 package main
 
 import (
+	. "fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -118,6 +119,13 @@ func (c *Client) readPump() {
 				}
 				c.hub.battle <- sendObj
 			}
+		case "Bet":
+			sendObj := Log{
+				data:   []byte(message.Type),
+				client: c,
+				result: []byte(message.Key),
+			}
+			c.hub.bet <- sendObj
 		}
 	}
 }
