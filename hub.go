@@ -4,7 +4,9 @@
 
 package main
 
-import "fmt"
+import (
+	"bytes"
+)
 
 type Info struct {
 	data []byte
@@ -33,7 +35,7 @@ type Hub struct {
 	// Unregister requests from clients.
 	unregister chan *Client
 	battle     chan Log
-	betting    chan Log
+	bet        chan Log
 }
 
 func newHub() *Hub {
@@ -45,7 +47,7 @@ func newHub() *Hub {
 		unregister: make(chan *Client),
 		clients:    make(map[*Client]bool),
 		battle:     make(chan Log),
-		betting:    make(chan Log),
+		bet:        make(chan Log),
 	}
 }
 
@@ -103,35 +105,28 @@ func (h *Hub) run() {
 			for client := range h.clients {
 				select {
 				case client.send2 <- info:
-					fmt.Println("added to ", client.id)
 				default:
 					close(client.send2)
 					delete(h.clients, client)
 				}
 			}
-		case betLog := <-h.betting:
+		case betLog := <-h.bet:
 			history = append(history, betLog)
 			var info Info
-			if betLog.client != nil {
-				info = Info{
-					data: betLog.data,
-					id:   betLog.client.id,
-					key:  betLog.client.id,
-				}
-			} else {
-				info = Info{
-					data: betLog.data,
-					id:   []byte{},
-					key:  []byte("-1"),
-				}
+
+			info = Info{
+				data: betLog.data,
+				id:   betLog.client.id,
+				key:  betLog.result,
 			}
 			for client := range h.clients {
-				select {
-				case client.send2 <- info:
-					fmt.Println("added to ", client.id)
-				default:
-					close(client.send2)
-					delete(h.clients, client)
+				if bytes.Compare(client.id, betLog.client.id) != 0 {
+					select {
+					case client.send2 <- info:
+					default:
+						close(client.send2)
+						delete(h.clients, client)
+					}
 				}
 			}
 		}
